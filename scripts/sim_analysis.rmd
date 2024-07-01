@@ -1,0 +1,73 @@
+---
+title: Simulation analysis
+date: "2024-06-27"
+---
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+o <- readRDS("res.rds")
+o
+
+os <- o %>% group_by(
+    h2, rho, npoly, gen, sim
+) %>%
+    summarise(meanmin=min(mean_prs), meanmax=max(mean_prs), range=meanmin-meanmax, v=var(mean_prs))
+
+
+os2 <- o %>% group_by(
+    h2, rho, npoly, gen, sim
+) %>%
+    filter(row_number()==1) %>%
+    mutate(prs_z = pmin(10, prs_beta/prs_se))
+
+os2 %>% str
+
+
+
+
+str(o)
+
+ggplot(os, aes(x=gen, y=range, group=rho)) +
+geom_point(aes(colour=rho)) +
+geom_smooth(aes(colour=rho))
+
+os
+os2
+
+ggplot(os2, aes(x=gen, y=prs_beta, group=rho)) +
+geom_point(aes(colour=rho)) +
+geom_smooth(aes(colour=rho))
+
+
+os2 %>% group_by(h2, rho, gen, npoly) %>%
+    summarise(nsig=sum(nsig)) %>%
+    ggplot(., aes(x=gen, y=nsig), group=as.factor(rho)) +
+        geom_point(aes(colour=rho))
+
+os2
+
+table(os2$prs_pval < 0.000001)
+
+summary(lm(prs_z ~ gen, os2))
+
+
+
+ggplot(os2, aes(x=gen, y=nsig), group=rho) +
+geom_point(aes(colour=rho))
+
+
+table(os2$rho)
+table(os$rho)
+
+class(os2$rho)
+
+
+plot(1:10)
+
+with()
+```
+
+
