@@ -3,10 +3,35 @@ title: Simulation analysis
 date: "2024-06-27"
 ---
 
-
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(here)
+
+source("scripts/sim_functions.r")
+```
+
+
+Check simulations
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
 
 o <- readRDS("res.rds")
 o

@@ -1,0 +1,92 @@
+---
+title: "Family sharing"
+output: html_notebook
+author: Gibran
+---
+
+
+```{r}
+library(dplyr)
+library()
+x <- 0.3
+x1 <- 1-x
+```
+
+
+```{r}
+x^2*x1 + 2*x^2*x1^2 + x*x1^2
+```
+
+```{r}
+x * x1
+```
+
+
+
+
+```{r}
+sim_fam <- function(af, nfam) {
+  m1 <- rbinom(nfam, 1, af)
+  m2 <- rbinom(nfam, 1, af)
+  f1 <- rbinom(nfam, 1, af)
+  f2 <- rbinom(nfam, 1, af)
+
+  sib1_m <- rep(0, nfam)
+  sib1_f <- rep(0, nfam)
+  sib2_m <- rep(0, nfam)
+  sib2_f <- rep(0, nfam)
+  
+  ind <- sample(c(TRUE, FALSE), nfam, replace=TRUE)
+  sib1_m[ind] <- m1[ind]
+  sib1_m[!ind] <- m2[!ind]
+  ind <- sample(c(TRUE, FALSE), nfam, replace=TRUE)
+  sib1_f[ind] <- f1[ind]
+  sib1_f[!ind] <- f2[!ind]
+  ind <- sample(c(TRUE, FALSE), nfam, replace=TRUE)
+  sib2_m[ind] <- m1[ind]
+  sib2_m[!ind] <- m2[!ind]
+  ind <- sample(c(TRUE, FALSE), nfam, replace=TRUE)
+  sib2_f[ind] <- f1[ind]
+  sib2_f[!ind] <- f2[!ind]
+
+
+  m <- m1 + m2
+  f <- f1 + f2
+  sib1 <- sib1_m + sib1_f
+  sib2 <- sib2_m + sib2_f
+  
+  return(list(m=m, f=f, o1=sib1, o2=sib2))  
+}
+``` 
+
+
+Check that the frequencies of father and offspring sum to 1
+
+```{r}
+fam <- sim_fam(0.3, 10000)
+(table(fam$f, fam$o1) / length(fam$f)) %>% sum
+```
+
+Look at frequencies of father and offspring
+
+```{r}
+table(fam$f, fam$o1) / length(fam$f)
+```
+
+expected frequencies
+
+```{r}
+exp_father_son <- function(af) {
+  x <- 1-af
+  x1 <- af
+  matrix(c(
+    x^3, x^2 * x1, 0,
+    x^2 * x1, x * x1, x * x1^2,
+    0, x * x1^2, x1^2),
+    ncol=3
+  )
+}
+
+exp_father_son(0.3)
+
+```
