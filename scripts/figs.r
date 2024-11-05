@@ -1,7 +1,5 @@
 library(dplyr)
-library(MASS)
 library(ggplot2)
-library(furrr)
 library(here)
 
 load(file=here("results/run_sim.RData"))
@@ -29,6 +27,4 @@ l %>%
     labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and trait"), colour="Variant") +
     scale_colour_brewer(type="qual")
 ggsave(here("results/run_sim_trait.pdf"), width=7, height=7)
-
-l$rholab <- paste0(".(rho)=", l$rho)
 
