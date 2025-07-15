@@ -2,7 +2,7 @@ library(dplyr)
 library(MASS)
 library(ggplot2)
 library(here)
-library(kinship2)
+# library(kinship2)
 
 # Take a vector of trait values for males and females and pair them such that the correlation between m and f trait values = rho
 generate_assortment <- function(m, f, rho) {
@@ -28,9 +28,11 @@ generate_assortment <- function(m, f, rho) {
 #' @param rho Assortative mating coefficient
 #' @param nrare Number of null rare variants
 #' @param ncommon Number of null common variants
+#' @param nrare_per_family Whether both parents or just one parent should have a rare variant
+#' @param family_rank Which family should have the rare variant, 0 to 1 scale where 0 is the lowest family phenotype and 1 is the highest. Defauly=1
 #'
 #' @return A list containing the pedigree, genotype matrices for the mothers and fathers, the trait values for the mothers and fathers, the PRS for the mothers and fathers, and a map of the SNPs to their type
-make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000) {
+make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_per_family=2, family_rank=1) {
     npoly <- length(betas)
     # Generate poly variants
     g_mother1 <- sapply(1:npoly, \(i) rbinom(nfam, 1, 0.5))
@@ -60,10 +62,15 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000) {
     g_father1 <- cbind(g_father1, matrix(0, nfam, nrare))
     g_father2 <- cbind(g_father2, matrix(0, nfam, nrare))
 
-    # Find highest family
-    i <- which.max(y_mother + y_father)
+    # Find rank family
+
+    y_fam <- y_mother + y_father
+    quant <- quantile(y_fam, family_rank)
+    i <- which.min(abs(y_fam - quant))
+    print(y_fam[i])
+
     g_mother1[i, (npoly+1):ncol(g_mother1)] <- 1
-    g_father1[i, (npoly+1):ncol(g_mother1)] <- 1
+    g_father1[i, (npoly+1):ncol(g_father1)] <- ifelse(nrare_per_family > 1, 1, 0)
 
     # Common variants
     g_mother1 <- cbind(g_mother1, sapply(1:ncommon, \(i) rbinom(nfam, 1, 0.5)))
