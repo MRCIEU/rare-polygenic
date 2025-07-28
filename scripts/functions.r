@@ -67,7 +67,6 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
     y_fam <- y_mother + y_father
     quant <- quantile(y_fam, family_rank)
     i <- which.min(abs(y_fam - quant))
-    print(y_fam[i])
 
     g_mother1[i, (npoly+1):ncol(g_mother1)] <- 1
     g_father1[i, (npoly+1):ncol(g_father1)] <- ifelse(nrare_per_family > 1, 1, 0)
