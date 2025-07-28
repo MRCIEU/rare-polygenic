@@ -12,11 +12,18 @@ In R:
 remv::restore()
 ```
 
+Or optionally use renv with mamba:
+
+```
+mamba create -n renv r-renv
+mamba activate renv
+# In R:
+renv::restore()
+```
+
 On ieu-p1:
 
 ```sh
 Rscript scripts/sim_run.r
+Rscript scripts/figs.r
 ```
-
-```
-
