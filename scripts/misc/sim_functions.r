@@ -2,7 +2,7 @@ library(dplyr)
 library(MASS)
 library(ggplot2)
 library(parallel)
-library(igraph)
+# library(igraph)
 
 # Sample pairings of two phenotype vectors to induce a specified correlation between the two phenotype vectors
 generate_assortment <- function(m, f, rho) {
@@ -221,59 +221,59 @@ greedy_remove_relateds <- function(m) {
     return(keep)
 }
 
-find_families <- function(cdat) {
-    gens <- unique(cdat$x$gen)
-    lapply(gens, function(i) {
-        m <- make_grm(cdat$g[cdat$x$gen == i,])
-        nfam <- nrow(m) / 2
-        diag(m) <- 0
-        m[m < 0.2] <- 0
-        m[m >= 0.2] <- 1
-        gr <- graph_from_adjacency_matrix(m)
-        rw <- cluster_walktrap(gr)
-        rw$membership
-        x <- cdat$x[cdat$x$gen == i,] %>% mutate(fid = rw$membership)
-        xs <- x %>% 
-            group_by(fid) %>% 
-            summarise(mean_prs = mean(prs), n = n(), se_prs = sd(prs) / sqrt(n())) %>% 
-            arrange(desc(mean_prs)) %>% 
-            filter(n > 1) %>% 
-            mutate(gen=i)
+# find_families <- function(cdat) {
+#     gens <- unique(cdat$x$gen)
+#     lapply(gens, function(i) {
+#         m <- make_grm(cdat$g[cdat$x$gen == i,])
+#         nfam <- nrow(m) / 2
+#         diag(m) <- 0
+#         m[m < 0.2] <- 0
+#         m[m >= 0.2] <- 1
+#         gr <- igraph::graph_from_adjacency_matrix(m)
+#         rw <- igraph::cluster_walktrap(gr)
+#         rw$membership
+#         x <- cdat$x[cdat$x$gen == i,] %>% mutate(fid = rw$membership)
+#         xs <- x %>% 
+#             group_by(fid) %>% 
+#             summarise(mean_prs = mean(prs), n = n(), se_prs = sd(prs) / sqrt(n())) %>% 
+#             arrange(desc(mean_prs)) %>% 
+#             filter(n > 1) %>% 
+#             mutate(gen=i)
 
-        # Get family - y association
-        l <- list()
-        fams <- unique(x$fid)
-        for(j in fams) {
-            temp <- as.numeric(x$fid == j)
-            a <- summary(lm(temp ~ x$y))$coefficients
-            l[[j]] <- tibble(fid=j, y_beta = a[2,1], y_se=a[2,2], y_pval=a[2,4])
-        }
-        l <- bind_rows(l) %>% mutate(y_padj = p.adjust(y_pval, "bonferroni"))
-        xs <- left_join(xs, l, by="fid")
+#         # Get family - y association
+#         l <- list()
+#         fams <- unique(x$fid)
+#         for(j in fams) {
+#             temp <- as.numeric(x$fid == j)
+#             a <- summary(lm(temp ~ x$y))$coefficients
+#             l[[j]] <- tibble(fid=j, y_beta = a[2,1], y_se=a[2,2], y_pval=a[2,4])
+#         }
+#         l <- bind_rows(l) %>% mutate(y_padj = p.adjust(y_pval, "bonferroni"))
+#         xs <- left_join(xs, l, by="fid")
 
-        # Get rare variant - family association
-        l <- list()
-        for(j in fams) {
-            temp <- as.numeric(x$fid == j)
-            a <- gwas(temp, cdat$g[cdat$x$gen == i,1:nfam])
-            l[[j]] <- a %>% arrange(desc(fval)) %>% mutate(padj = p.adjust(pval, "bonferroni")) %>% slice_head(n=1) %>% mutate(fid = j, nsig=sum(padj < 0.05))
-        }
-        l <- bind_rows(l)
-        xs <- left_join(xs, l, by="fid")
+#         # Get rare variant - family association
+#         l <- list()
+#         for(j in fams) {
+#             temp <- as.numeric(x$fid == j)
+#             a <- gwas(temp, cdat$g[cdat$x$gen == i,1:nfam])
+#             l[[j]] <- a %>% arrange(desc(fval)) %>% mutate(padj = p.adjust(pval, "bonferroni")) %>% slice_head(n=1) %>% mutate(fid = j, nsig=sum(padj < 0.05))
+#         }
+#         l <- bind_rows(l)
+#         xs <- left_join(xs, l, by="fid")
 
-        # Get rare variant - y assocs
-        l <- list()
-        for(j in fams) {
-            temp <- as.numeric(x$fid == j)
-            a <- gwas(x$y, cdat$g[cdat$x$gen == i,1:nfam])
-            l[[j]] <- a %>% arrange(desc(fval)) %>% mutate(padj = p.adjust(pval, "bonferroni")) %>% slice_head(n=1) %>% mutate(fid = j, nsig2=sum(padj < 0.05))
-        }
-        l <- bind_rows(l)
-        xs <- left_join(xs, l, by="fid")
+#         # Get rare variant - y assocs
+#         l <- list()
+#         for(j in fams) {
+#             temp <- as.numeric(x$fid == j)
+#             a <- gwas(x$y, cdat$g[cdat$x$gen == i,1:nfam])
+#             l[[j]] <- a %>% arrange(desc(fval)) %>% mutate(padj = p.adjust(pval, "bonferroni")) %>% slice_head(n=1) %>% mutate(fid = j, nsig2=sum(padj < 0.05))
+#         }
+#         l <- bind_rows(l)
+#         xs <- left_join(xs, l, by="fid")
 
-        return(xs)
-    }) %>% bind_rows()
-}
+#         return(xs)
+#     }) %>% bind_rows()
+# }
 
 fam_sim <- function(ngen, nfam, npoly, h2, rho) {
     betas <- rnorm(npoly)
