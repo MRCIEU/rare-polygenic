@@ -40,7 +40,6 @@ temp <- l2 %>%
         rholab = paste("rho ==", rho), h2lab = paste("h^2 ==", h2)
     )
 
-str(temp)
 temp <- mutate(temp, 
     what = case_when(
         what == "rare" ~ "Null rare variants", 
@@ -50,12 +49,13 @@ temp <- mutate(temp,
 )
 
 p1 <- temp %>%
-    ggplot(., aes(x=family_rank, y=r)) + 
-    geom_point(aes(colour=as.factor(gen))) +
-    geom_smooth(aes(colour=as.factor(gen)), se=FALSE) +
+    filter(family_rank != 0.5) %>%
+    ggplot(., aes(x=gen, y=r)) + 
+    geom_point(aes(colour=as.factor(family_rank))) +
+    geom_smooth(aes(colour=as.factor(family_rank)), se=FALSE) +
     facet_grid(. ~ what) +
-    labs(x="Family phenotype rank", y=expression("Median" ~ R^2 ~ "between variant and trait"), linetype="Variant", colour="Generation") +
-    scale_colour_brewer(type="qual") +
+    labs(x="Family phenotype rank", y=expression("Median" ~ R^2 ~ "between variant and trait"), linetype="Variant", colour="Phenotypic rank") +
+    scale_colour_brewer(type="seq") +
     theme_minimal() +
     theme(axis.text.x= element_text(angle=90, hjust=0.5))
-ggsave(p1, file="l2.pdf", width=14)
+ggsave(p1, file="results/run_sim_rank.pdf", width=14)

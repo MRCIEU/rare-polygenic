@@ -104,8 +104,8 @@ param <-
         rho=c(0.4), 
         nfam=c(2000), 
         nrare=c(10000), 
-        rep=1:200,
-        family_rank=c(seq(0,0.05, length.out=6), 0.5, seq(0.95, 1, length.out=6)),
+        rep=1:400,
+        family_rank=seq(0.9, 1, by=0.02),
         nrare_per_family=c(1)
     )
 dim(param)
