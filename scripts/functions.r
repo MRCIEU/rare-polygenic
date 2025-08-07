@@ -42,7 +42,7 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
 
     prs_mother <- (g_mother1[,1:ncol(g_mother1)] + g_mother2[,1:ncol(g_mother2)]) %*% betas
     prs_father <- (g_father1[,1:ncol(g_father1)] + g_father2[,1:ncol(g_father2)]) %*% betas
-    y_mother <- scale(prs_mother) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2))
+    y_mother <- scale(prs_mother) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2)) 
     y_father <- scale(prs_father) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2))
 
     m <- generate_assortment(y_mother, y_father, rho)
@@ -107,7 +107,7 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
 #' @param rho Assortative mating coefficient
 #' @param reset_rare If TRUE, reset the rare variants to be new mutations
 #' @return A list containing the pedigree, genotype matrices for the mothers and fathers, the trait values for the mothers and fathers, the PRS for the mothers and fathers, and a map of the SNPs to their type
-create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE) {
+create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE, h2_rare=0) {
     nfam <- nrow(dat$x)
     nsnp <- ncol(dat$g_mother1)
 
@@ -142,10 +142,14 @@ create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE) {
     }
 
     vind <- subset(dat$map, what == "prs")$snp
+    vind_rare <- subset(dat$map, what == "rare")$snp
+    beta_rare <- rnorm(length(vind_rare))
     prs_sib1 <- (sib1_m[,vind] + sib1_f[,vind]) %*% betas
     prs_sib2 <- (sib2_m[,vind] + sib2_f[,vind]) %*% betas
-    y_sib1 <- scale(prs_sib1) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2))
-    y_sib2 <- scale(prs_sib2) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2))
+    bv_rare1 <- scale((sib1_m[,vind_rare] + sib1_f[,vind_rare]) %*% beta_rare) * sqrt(h2_rare)
+    bv_rare2 <- scale((sib2_m[,vind_rare] + sib2_f[,vind_rare]) %*% beta_rare) * sqrt(h2_rare)
+    y_sib1 <- scale(prs_sib1) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2 - h2_rare)) + bv_rare1
+    y_sib2 <- scale(prs_sib2) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2 - h2_rare)) + bv_rare2
 
 
     # This doesn't exclude inbreeding
