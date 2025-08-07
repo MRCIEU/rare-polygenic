@@ -59,3 +59,21 @@ p1 <- temp %>%
     theme_minimal() +
     theme(axis.text.x= element_text(angle=90, hjust=0.5))
 ggsave(p1, file="results/run_sim_rank.pdf", width=14)
+
+
+load(file=here("results/run_sim3.RData"))
+temp <- l3 %>% 
+    filter(out == "prs") %>%
+    group_by(h2_rare, what, h2, rho, gen) %>%
+    summarise(r=median(r^2)) %>%
+    mutate(
+        rholab = paste("rho ==", rho), h2lab = paste("'Rare '* h^2 ==", h2_rare)
+    )
+
+temp %>%
+    ggplot(., aes(x=as.factor(gen), y=r, colour=as.factor(what))) + geom_line(aes(group=what)) +
+    facet_grid(h2lab ~ rholab, labeller = label_parsed) +
+    labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and PRS"), colour="Variant") +
+    scale_colour_brewer(type="qual") +
+    theme_minimal()
+ggsave(file="results/run_sim_rare_causal.pdf", width=7, height=7)
