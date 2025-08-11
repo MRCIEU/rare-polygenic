@@ -142,13 +142,13 @@ param <-
         rho=c(0, 0.4, 0.8), 
         nfam=c(2000), 
         nrare=c(100), 
-        rep=1:100,
+        rep=1:400,
         family_rank=1,
         nrare_per_family=c(1),
         h2_rare=c(0, 0.15)
     )
 dim(param)
-plan(multicore, workers=6)
+plan(multicore, workers=60)
 options <- furrr_options(seed=TRUE)
 l3 <- future_pmap(param, run_sim, .progress=TRUE, .options=options)
 l3 <- bind_rows(l3)
