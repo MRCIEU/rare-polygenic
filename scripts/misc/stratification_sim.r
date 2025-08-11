@@ -81,18 +81,27 @@ dgm <- function(centroid, sharpness, b_conf, b_variant, coord1=dat$northing, coo
 }
 
 estimation <- function(dat, phendat) {
-    mod1 <- summary(lm(phen ~ variant + conf, data=phendat))
-    mod2 <- summary(lm(phen ~ variant, data=phendat))
-    mod3 <- summary(lm(phen ~ variant + as.matrix(dat[,3:42]), data=phendat))
-    mod4 <- summary(lm(phen ~ variant + northing + easting, data=phendat))
+    mod1 <- summary(lm(phen ~ scale(variant) + conf, data=phendat))
+    mod2 <- summary(lm(phen ~ scale(variant), data=phendat))
+    mod3 <- summary(lm(phen ~ scale(variant) + as.matrix(dat[,3:42]), data=phendat))
+    mod4 <- summary(lm(phen ~ scale(variant) + northing + easting, data=phendat))
+    coord_pred <- fit_genetic_nn(
+        y = phendat$phen,
+        genetic_pcs = phendat %>% select(northing, easting),
+        hidden_units = 10,
+        decay = 0.001,
+        scale_data = TRUE,
+        maxit=25
+    )$predictions
+    mod5 <- summary(lm(phen ~ scale(variant) + coord_pred, data=phendat))
     tibble(
-        model = c("variant + conf", "variant", "variant + PCs", "variant + coords"),
+        model = c("variant + conf", "variant", "variant + PCs", "variant + coords", "variant + coord_nn"),
         freq = mean(phendat$variant)/2,
-        var_beta = c(mod1$coefficients[2,1], mod2$coefficients[2,1], mod3$coefficients[2,1], mod4$coefficients[2,1]),
-        var_se = c(mod1$coefficients[2,2], mod2$coefficients[2,2], mod3$coefficients[2,2], mod4$coefficients[2,2]),
-        var_p = c(mod1$coefficients[2,4], mod2$coefficients[2,4], mod3$coefficients[2,4], mod4$coefficients[2,4]),
-        r2 = c(mod1$r.squared, mod2$r.squared, mod3$r.squared, mod4$r.squared),
-        adj_r2 = c(mod1$adj.r.squared, mod2$adj.r.squared, mod3$adj.r.squared, mod4$adj.r.squared),
+        var_beta = c(mod1$coefficients[2,1], mod2$coefficients[2,1], mod3$coefficients[2,1], mod4$coefficients[2,1], mod5$coefficients[2,1]),
+        var_se = c(mod1$coefficients[2,2], mod2$coefficients[2,2], mod3$coefficients[2,2], mod4$coefficients[2,2], mod5$coefficients[2,2]),
+        var_p = c(mod1$coefficients[2,4], mod2$coefficients[2,4], mod3$coefficients[2,4], mod4$coefficients[2,4], mod5$coefficients[2,4]),
+        r2 = c(mod1$r.squared, mod2$r.squared, mod3$r.squared, mod4$r.squared, mod5$r.squared),
+        adj_r2 = c(mod1$adj.r.squared, mod2$adj.r.squared, mod3$adj.r.squared, mod4$adj.r.squared, mod5$adj.r.squared),
         n = nrow(phendat)
     )
 }
@@ -106,10 +115,11 @@ run_sim <- function(centroid, sharpness, b_conf, b_variant, rep=1) {
 
 
 
-phendat <- dgm(c(dat$northing[i], dat$easting[i]), 0.001, 0.3, 0.1)
+phendat <- dgm(c(dat$northing[i], dat$easting[i]), 0.1, 0.3, 0.1)
 estimation(dat, phendat)
 
-run_sim(c(dat$northing[i], dat$easting[i]), 2, 0.5, 0.1)
+run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0.5, 0.1)
+run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0, 0)
 
 
 centroids <- dat %>%
@@ -152,7 +162,9 @@ ggplot(res, aes(x=freq, y=var_beta - b_variant, colour=model)) +
     facet_grid(b_conf ~ b_variant, labeller = label_both) +
     theme_minimal()
 
-ggplot(res, aes(x=as.factor(sharpness), y=var_beta - b_variant, colour=model)) +
+res %>%
+    mutate(var_beta_transformed = var_beta * (2 * freq * (1 - freq))) %>%
+ggplot(., aes(x=as.factor(sharpness), y=var_beta_transformed - b_variant, colour=model)) +
     geom_boxplot() +
     labs(x="Frequency of variant", y="Estimated beta - true beta") +
     scale_colour_brewer(type = "qual") +
@@ -185,8 +197,8 @@ fit_genetic_nn <- function(y, genetic_pcs,
   data <- na.omit(data)
   n_samples <- nrow(data)
   
-  cat("Sample size after removing NAs:", n_samples, "\n")
-  cat("Number of genetic PCs:", ncol(genetic_pcs), "\n")
+#   cat("Sample size after removing NAs:", n_samples, "\n")
+#   cat("Number of genetic PCs:", ncol(genetic_pcs), "\n")
   
   # Split into training and testing sets
   train_indices <- sample(1:n_samples, size = floor(train_prop * n_samples))
@@ -207,7 +219,7 @@ fit_genetic_nn <- function(y, genetic_pcs,
   }
   
   # Fit neural network
-  cat("Fitting neural network with", hidden_units, "hidden units...\n")
+#   cat("Fitting neural network with", hidden_units, "hidden units...\n")
   
   nn_model <- nnet(y ~ ., 
                    data = train_data,
@@ -240,11 +252,11 @@ fit_genetic_nn <- function(y, genetic_pcs,
   test_r2 <- cor(test_data$y, test_predictions)^2
   
   # Print performance
-  cat("\nModel Performance:\n")
-  cat("Training RMSE:", round(train_rmse, 4), "\n")
-  cat("Test RMSE:", round(test_rmse, 4), "\n")
-  cat("Training R²:", round(train_r2, 4), "\n")
-  cat("Test R²:", round(test_r2, 4), "\n")
+#   cat("\nModel Performance:\n")
+#   cat("Training RMSE:", round(train_rmse, 4), "\n")
+#   cat("Test RMSE:", round(test_rmse, 4), "\n")
+#   cat("Training R²:", round(train_r2, 4), "\n")
+#   cat("Test R²:", round(test_r2, 4), "\n")
   
   # Return results
   results <- list(
