@@ -32,7 +32,7 @@ generate_assortment <- function(m, f, rho) {
 #' @param family_rank Which family should have the rare variant, 0 to 1 scale where 0 is the lowest family phenotype and 1 is the highest. Defauly=1
 #'
 #' @return A list containing the pedigree, genotype matrices for the mothers and fathers, the trait values for the mothers and fathers, the PRS for the mothers and fathers, and a map of the SNPs to their type
-make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_per_family=2, family_rank=1) {
+make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_per_family=2, family_rank=1, prs_known=1) {
     npoly <- length(betas)
     # Generate poly variants
     g_mother1 <- sapply(1:npoly, \(i) rbinom(nfam, 1, 0.5))
@@ -42,6 +42,18 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
 
     prs_mother <- (g_mother1[,1:ncol(g_mother1)] + g_mother2[,1:ncol(g_mother2)]) %*% betas
     prs_father <- (g_father1[,1:ncol(g_father1)] + g_father2[,1:ncol(g_father2)]) %*% betas
+
+    if(prs_known == 1) {
+        prsk_mother <- prs_mother
+        prsk_father <- prs_father
+    } else {
+        prs_known_index <- (1:ncol(g_mother1))
+        prs_known_index <- prs_known_index[1:round(length(prs_known_index) * prs_known)]
+        betas_known <- betas[1:round(length(betas) * prs_known)]
+        prsk_mother <- (g_mother1[,prs_known_index] + g_mother2[,prs_known_index]) %*% betas_known
+        prsk_father <- (g_father1[,prs_known_index] + g_father2[,prs_known_index]) %*% betas_known
+
+    }
     y_mother <- scale(prs_mother) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2)) 
     y_father <- scale(prs_father) * sqrt(h2) + rnorm(nfam, 0, sqrt(1 - h2))
 
@@ -54,7 +66,10 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
     y_father <- y_father[m$f]
     prs_mother <- prs_mother[m$m]
     prs_father <- prs_father[m$f]
-
+    prsk_mother <- prsk_mother[m$m]
+    prsk_father <- prsk_father[m$f]
+    yres_mother <- residuals(lm(y_mother ~ prsk_mother))
+    yres_father <- residuals(lm(y_father ~ prsk_father))
 
     # Generate rare variants
     g_mother1 <- cbind(g_mother1, matrix(0, nfam, nrare))
@@ -95,8 +110,11 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
     ped <- bind_rows(pedm, pedf)
     ped$prs <- c(prs_mother, prs_father)
     ped$y <- c(y_mother, y_father)
+    ped$prsk <- c(prsk_mother, prsk_father)
+    ped$yres <- c(yres_mother, yres_father)
+    
     map <- tibble(snp=1:ncol(g_mother1), what=c(rep("prs", npoly), rep("rare", nrare), rep("common", ncommon)))
-    return(list(ped = ped, g_mother1 = g_mother1, g_mother2 = g_mother2, g_father1 = g_father1, g_father2 = g_father2, x = tibble(id_mother = pedm$id, id_father = pedf$id, y_mother, y_father, prs_mother, prs_father), map = map))
+    return(list(ped = ped, g_mother1 = g_mother1, g_mother2 = g_mother2, g_father1 = g_father1, g_father2 = g_father2, x = tibble(id_mother = pedm$id, id_father = pedf$id, y_mother, y_father, prs_mother, prs_father, yres_mother, yres_father, prsk_mother, prsk_father), map = map))
 }
 
 #' Create a new generation from a previous generation
@@ -107,7 +125,7 @@ make_founders <- function(betas, nfam, h2, rho, nrare=1000, ncommon=1000, nrare_
 #' @param rho Assortative mating coefficient
 #' @param reset_rare If TRUE, reset the rare variants to be new mutations
 #' @return A list containing the pedigree, genotype matrices for the mothers and fathers, the trait values for the mothers and fathers, the PRS for the mothers and fathers, and a map of the SNPs to their type
-create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE, h2_rare=0) {
+create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE, h2_rare=0, prs_known=1) {
     nfam <- nrow(dat$x)
     nsnp <- ncol(dat$g_mother1)
 
@@ -163,6 +181,19 @@ create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE, h2_rare=0
     prs_sib1 <- prs_sib1[m$m]
     prs_sib2 <- prs_sib2[m$f]
 
+    if(prs_known == 1) {
+        prsk_sib1 <- prs_sib1
+        prsk_sib2 <- prs_sib2
+    } else {
+        prs_known_index <- vind
+        prs_known_index <- prs_known_index[1:round(length(prs_known_index) * prs_known)]
+        betas_known <- betas[1:round(length(betas) * prs_known)]
+        prsk_sib1 <- (sib1_m[,prs_known_index] + sib1_f[,prs_known_index]) %*% betas_known
+        prsk_sib2 <- (sib2_m[,prs_known_index] + sib2_f[,prs_known_index]) %*% betas_known
+    }
+    yres_sib1 <- residuals(lm(y_sib1 ~ prsk_sib1))
+    yres_sib2 <- residuals(lm(y_sib2 ~ prsk_sib2))
+
     gen <- max(dat$ped$generation) + 1
     pedl <- subset(dat$ped, generation == gen-1)
     ped_m <- tibble(
@@ -181,11 +212,15 @@ create_generation <- function(dat, betas, h2, rho, reset_rare = FALSE, h2_rare=0
         )[m$f,]
     ped_m$prs <- prs_sib1
     ped_f$prs <- prs_sib2
+    ped_m$prsk <- prsk_sib1
+    ped_f$prsk <- prsk_sib2
     ped_m$y <- y_sib1
     ped_f$y <- y_sib2
+    ped_m$yres <- yres_sib1
+    ped_f$yres <- yres_sib2
     ped <- bind_rows(dat$ped, ped_m, ped_f)
 
-    return(list(ped = ped, g_mother1 = sib1_m, g_mother2 = sib1_f, g_father1 = sib2_m, g_father2 = sib2_f, x = tibble(id_mother = ped_m$id, id_father = ped_f$id, y_mother=y_sib1, y_father=y_sib2, prs_mother=prs_sib1, prs_father=prs_sib2), map = dat$map))
+    return(list(ped = ped, g_mother1 = sib1_m, g_mother2 = sib1_f, g_father1 = sib2_m, g_father2 = sib2_f, x = tibble(id_mother = ped_m$id, id_father = ped_f$id, y_mother=y_sib1, y_father=y_sib2, prs_mother=prs_sib1, prs_father=prs_sib2, yres_mother=yres_sib1, yres_father=yres_sib2, prsk_mother=prsk_sib1, prsk_father=prsk_sib2), map = dat$map))
 }
 
 #' Collapse a dataset to a single generation ready for analysis
@@ -194,7 +229,7 @@ collapse_dat <- function(dat) {
     g_mother <- dat$g_mother1 + dat$g_mother2
     g_father <- dat$g_father1 + dat$g_father2
     g <- rbind(g_mother, g_father)
-    x <- tibble(id = c(dat$x$id_mother, dat$x$id_father), y = c(dat$x$y_mother, dat$x$y_father), prs = c(dat$x$prs_mother, dat$x$prs_father))
+    x <- tibble(id = c(dat$x$id_mother, dat$x$id_father), y = c(dat$x$y_mother, dat$x$y_father), prs = c(dat$x$prs_mother, dat$x$prs_father), prsk = c(dat$x$prsk_mother, dat$x$prsk_father), yres = c(dat$x$yres_mother, dat$x$yres_father))
     dat$map$af <- colSums(g) / (2*nrow(g))
     return(list(g = g, x = x, map = dat$map))
 }

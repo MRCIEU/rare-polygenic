@@ -27,32 +27,6 @@ library(caret)
 library(parallel)
 
 
-coords <- fread(here("ukb.coords")) %>% filter(!is.na(`130-0.0`))
-names(coords)[2] <- "northing"
-names(coords)[5] <- "easting"
-
-# pcs <- fread("/mnt/storage/private/mrcieu/data/ukbiobank/genetic/variants/arrays/imputed/released/2018-09-18/data/derived/principal_components/data.pca1-40.plink.txt")
-pcs <- fread(here("data.pca1-40.plink.txt"))
-
-# linker <- fread("/mnt/storage/private/mrcieu/data/ukbiobank/phenotypic/applications/81499/released/2022-06-07/data/linker.81499.csv")
-linker <- fread(here("linker.81499.csv"))
-pcs <- inner_join(pcs, linker, by=c("V1"="ieu"))
-pcs
-dat <- inner_join(pcs, coords, by=c("app"="eid"))
-
-
-
-
-i <- sample(1:nrow(dat), 1)
-variant <- generate_variant_based_on_location(dat$northing, dat$easting, c(dat$northing[i], dat$easting[i]), 0.001, 0.1)
-tibble(variant, northing=dat$northing, easting=dat$easting) %>%
-ggplot(., aes(x=easting, y=northing)) +
-stat_summary_hex(aes(z=variant), fun = mean) +
-geom_point(data=dat[i,], aes(x=easting, y=northing), colour="red")
-mean(variant)/2
-
-
-
 
 generate_conf <- function(coord1, coord2, centroid, sharpness) {
     # Calculate the distance from the centroid
@@ -79,6 +53,17 @@ dgm <- function(centroid, sharpness, b_conf, b_variant, coord1=dat$northing, coo
     phen <- generate_phen(conf, variant, b_conf, b_variant)
     return(tibble(variant=variant, conf=conf, phen=phen, northing=coord1, easting=coord2))
 }
+
+hexbins_adjustment <- function(phendat) {
+    bins <- hexbin(phendat$easting, phendat$northing, 
+                   xbins = 30, 
+                   IDs = TRUE)
+    phendat$hex_id <- bins@cID
+    lm(phen ~ as.factor(hex_id), data=phendat)$residuals -> phendat$phen_resid
+    summary(lm(phen_resid ~ variant, data=phendat))
+}
+
+hexbins_adjustment(phendat)
 
 estimation <- function(dat, phendat) {
     mod1 <- summary(lm(phen ~ scale(variant) + conf, data=phendat))
@@ -113,73 +98,6 @@ run_sim <- function(centroid, sharpness, b_conf, b_variant, rep=1) {
     bind_cols(args, est)
 }
 
-
-
-phendat <- dgm(c(dat$northing[i], dat$easting[i]), 0.1, 0.3, 0.1)
-estimation(dat, phendat)
-
-run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0.5, 0.1)
-run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0, 0)
-
-
-centroids <- dat %>%
-    filter(!is.na(northing) & northing > 0) %>%
-    select(northing, easting) %>%
-    slice_sample(n=100)
-
-param <- expand.grid(
-    centroid = 1:10,
-    sharpness = c(0.001, 0.01, 0.1, 0.5),
-    b_conf = c(0, 0.3),
-    b_variant = c(0, 0.1),
-    rep= 1:10
-)
-dim(param)
-
-mclapply(1:nrow(param), function(i) {
-    message(paste("Running row", i, "of", nrow(param)))
-    tryCatch(
-        run_sim(
-            centroid = c(centroids$northing[param$centroid[i]], centroids$easting[param$centroid[i]]),
-            sharpness = param$sharpness[i],
-            b_conf = param$b_conf[i],
-            b_variant = param$b_variant[i],
-            rep = param$rep[i]
-        ),
-        error = function(e) {
-            message(paste("Error in row", i, ":", e$message))
-            return(NULL)
-        }
-    )   
-}, mc.cores=6) %>% bind_rows() -> res
-
-saveRDS(res, here("results", "stratification_sim_1.rds"))
-
-ggplot(res, aes(x=freq, y=var_beta - b_variant, colour=model)) +
-    geom_point() +
-    labs(x="Frequency of variant", y="Estimated beta - true beta") +
-    scale_colour_brewer(type = "qual") +
-    facet_grid(b_conf ~ b_variant, labeller = label_both) +
-    theme_minimal()
-
-res %>%
-    mutate(var_beta_transformed = var_beta * (2 * freq * (1 - freq))) %>%
-ggplot(., aes(x=as.factor(sharpness), y=var_beta_transformed - b_variant, colour=model)) +
-    geom_boxplot() +
-    labs(x="Frequency of variant", y="Estimated beta - true beta") +
-    scale_colour_brewer(type = "qual") +
-    facet_grid(b_conf ~ b_variant, labeller = label_both) +
-    theme_minimal()
-
-
-
-
-# Neural Network to predict spatially structured variable from genetic PCs
-# and return residuals
-
-# Load required libraries
-
-# Function to fit neural network and return residuals
 fit_genetic_nn <- function(y, genetic_pcs, 
                           hidden_units = 10, 
                           decay = 0.001,
@@ -275,6 +193,109 @@ fit_genetic_nn <- function(y, genetic_pcs,
   
   return(results)
 }
+
+
+coords <- fread(here("ukb.coords")) %>% filter(!is.na(`130-0.0`))
+names(coords)[2] <- "northing"
+names(coords)[5] <- "easting"
+
+# pcs <- fread("/mnt/storage/private/mrcieu/data/ukbiobank/genetic/variants/arrays/imputed/released/2018-09-18/data/derived/principal_components/data.pca1-40.plink.txt")
+pcs <- fread(here("data.pca1-40.plink.txt"))
+
+# linker <- fread("/mnt/storage/private/mrcieu/data/ukbiobank/phenotypic/applications/81499/released/2022-06-07/data/linker.81499.csv")
+linker <- fread(here("linker.81499.csv"))
+pcs <- inner_join(pcs, linker, by=c("V1"="ieu"))
+pcs
+dat <- inner_join(pcs, coords, by=c("app"="eid"))
+
+centroids <- dat %>%
+    filter(!is.na(northing) & northing > 0) %>%
+    select(northing, easting) %>%
+    slice_sample(n=100)
+
+param <- expand.grid(
+    centroid = 1:10,
+    sharpness = c(0.001, 0.01, 0.1, 0.5),
+    b_conf = c(0, 0.3),
+    b_variant = c(0, 0.1),
+    rep= 1:10
+)
+dim(param)
+
+mclapply(1:nrow(param), function(i) {
+    message(paste("Running row", i, "of", nrow(param)))
+    tryCatch(
+        run_sim(
+            centroid = c(centroids$northing[param$centroid[i]], centroids$easting[param$centroid[i]]),
+            sharpness = param$sharpness[i],
+            b_conf = param$b_conf[i],
+            b_variant = param$b_variant[i],
+            rep = param$rep[i]
+        ),
+        error = function(e) {
+            message(paste("Error in row", i, ":", e$message))
+            return(NULL)
+        }
+    )   
+}, mc.cores=60) %>% bind_rows() -> res
+
+
+
+i <- sample(1:nrow(dat), 1)
+phendat <- dgm(c(dat$northing[i], dat$easting[i]), 0.1, 0.3, 0.1)
+estimation(dat, phendat)
+
+run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0.5, 0.1)
+run_sim(c(dat$northing[i], dat$easting[i]), 0.01, 0, 0)
+
+
+
+saveRDS(res, here("results", "stratification_sim_1.rds"))
+
+ggplot(res, aes(x=freq, y=var_beta - b_variant, colour=model)) +
+    geom_point() +
+    labs(x="Frequency of variant", y="Estimated beta - true beta") +
+    scale_colour_brewer(type = "qual") +
+    facet_grid(b_conf ~ b_variant, labeller = label_both) +
+    theme_minimal()
+
+p1 <- res %>%
+ggplot(., aes(x=as.factor(sharpness), y=var_beta - b_variant, colour=model)) +
+    geom_boxplot() +
+    labs(x="Frequency of variant", y="Estimated beta - true beta") +
+    scale_colour_brewer(type = "qual") +
+    facet_grid(b_conf ~ b_variant, labeller = label_both) +
+    theme_minimal()
+ggsave(p1, file="temp.pdf", width=14, height=7)
+
+
+i <- sample(1:nrow(dat), 1)
+phendat <- dgm(c(dat$northing[i], dat$easting[i]), 0.1, 0.3, 0.1)
+estimation(dat, phendat)
+temp <- stat_summary_hex(aes(z=phen, x=easting, y=northing), fun = mean, data=phendat)
+temp2 <- layer_data(ggplot(phendat) + temp, 1)
+
+str(temp)
+# Get bins from temp
+str(temp$data)
+
+bins <- hexbin(temp$data$easting, temp$data$northing, 
+               xbins = 30, 
+               IDs = TRUE)
+
+str(bins)
+length(table(bins@cID))
+
+
+
+
+
+# Neural Network to predict spatially structured variable from genetic PCs
+# and return residuals
+
+# Load required libraries
+
+# Function to fit neural network and return residuals
 
 
 a <- fit_genetic_nn(
