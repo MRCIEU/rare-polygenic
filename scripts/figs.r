@@ -54,7 +54,7 @@ p1 <- temp %>%
     geom_point(aes(colour=as.factor(family_rank))) +
     geom_smooth(aes(colour=as.factor(family_rank)), se=FALSE) +
     facet_grid(. ~ what) +
-    labs(x="Family phenotype rank", y=expression("Median" ~ R^2 ~ "between variant and trait"), linetype="Variant", colour="Phenotypic rank") +
+    labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and trait"), linetype="Variant", colour="Phenotypic rank") +
     scale_colour_brewer(type="seq") +
     theme_minimal() +
     theme(axis.text.x= element_text(angle=90, hjust=0.5))
@@ -77,3 +77,24 @@ temp %>%
     scale_colour_brewer(type="qual") +
     theme_minimal()
 ggsave(file="results/run_sim_rare_causal.pdf", width=7, height=7)
+
+
+load(file=here("results/run_sim4.RData"))
+temp <- l4 %>% 
+    filter(out == "yres") %>%
+    group_by(h2_rare, what, h2, rho, gen, prs_known) %>%
+    summarise(r=median(r^2)) %>%
+    mutate(
+        rholab = paste("rho ==", rho), h2lab = paste("'Rare '* h^2 ==", h2_rare)
+    )
+
+p1 <- temp %>%
+    ggplot(., aes(x=gen, y=r)) + 
+    geom_point(aes(colour=as.factor(prs_known))) +
+    geom_smooth(aes(colour=as.factor(prs_known)), se=FALSE) +
+    facet_grid(. ~ what) +
+    labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and trait adjusted for PRS"), linetype="Variant", colour="% h2 explained by PRS") +
+    scale_colour_brewer(type="seq") +
+    theme_minimal() +
+    theme(axis.text.x= element_text(angle=90, hjust=0.5))
+ggsave(p1, file="results/run_prs_adjustment.pdf", width=14)
