@@ -93,7 +93,7 @@ p1 <- temp %>%
     geom_point(aes(colour=as.factor(prs_known))) +
     geom_smooth(aes(colour=as.factor(prs_known)), se=FALSE) +
     facet_grid(. ~ what) +
-    labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and trait adjusted for PRS"), linetype="Variant", colour="% h2 explained by PRS") +
+    labs(x="Generation", y=expression("Median" ~ R^2 ~ "between variant and trait adjusted for PRS"), linetype="Variant", colour="Heritability explained by PRS") +
     scale_colour_brewer(type="seq") +
     theme_minimal() +
     theme(axis.text.x= element_text(angle=90, hjust=0.5))
